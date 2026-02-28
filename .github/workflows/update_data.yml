@@ -28,5 +28,5 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
           # 如果 ssq_data.js 有变动，就提交；没变动就不管
-          git add ssq_data.js
+          git add *.js
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update ssq_data.js" && git push)
