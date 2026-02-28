@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>双色球复式中奖极速查询系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        .ball {
+            display: inline-flex; justify-content: center; align-items: center;
+            border-radius: 50%; color: white; font-weight: bold;
+        }
+        .red-ball { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b); box-shadow: 0 2px 4px rgba(192,57,43,0.4); }
+        .blue-ball { background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe); box-shadow: 0 2px 4px rgba(0,242,254,0.4); }
+        input[type="file"] { display: none; }
+        * { -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-2 sm:p-4 md:p-8 text-gray-800">
+
+<!-- 定义 Vue 组件模板：中奖结果卡片 (保持HTML干净不重复) -->
+<template id="result-template">
+    <div :class="['bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-t-4', themeClass]">
+        <h2 class="text-xl md:text-2xl font-bold text-center mb-4 md:mb-6 text-gray-800">{{ title }}</h2>
+        
+        <div class="grid md:grid-cols-2 gap-4 md:gap-6 mb-6">
+            <!-- 投注信息 -->
+            <div class="bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-200">
+                <h3 class="text-sm md:text-base font-bold text-gray-600 mb-2 md:mb-3">您的投注方案</h3>
+                <div class="flex flex-wrap gap-1.5 md:gap-2 mb-3">
+                    <span v-for="r in parsedReds" class="ball red-ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm">{{ r < 10 ? '0'+r : r }}</span>
+                    <span v-for="b in parsedBlues" class="ball blue-ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm">{{ b < 10 ? '0'+b : b }}</span>
+                </div>
+                <div class="flex justify-between text-xs md:text-sm text-gray-600">
+                    <p>总注数：<span class="font-bold text-black">{{ formatMoney(totalBets) }}</span> 注</p>
+                    <p>总成本：<span class="font-bold text-red-600">￥{{ formatMoney(totalBets * 2) }}</span></p>
+                </div>
+            </div>
+
+            <!-- 开奖信息 -->
+            <div class="bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-200">
+                <h3 class="text-sm md:text-base font-bold text-gray-600 mb-2 md:mb-3">
+                    第 <span class="text-red-600">{{ result.draw.issue }}</span> 期开奖 
+                    <span class="text-xs font-normal text-gray-400 block sm:inline">({{ result.draw.date }})</span>
+                </h3>
+                <div class="flex flex-wrap gap-1.5 md:gap-2 mb-3">
+                    <span v-for="r in result.draw.reds" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedReds.includes(r) ? 'red-ball' : 'bg-gray-300']">{{ r < 10 ? '0'+r : r }}</span>
+                    <span :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedBlues.includes(result.draw.blue) ? 'blue-ball' : 'bg-gray-300']">{{ result.draw.blue < 10 ? '0'+result.draw.blue : result.draw.blue }}</span>
+                </div>
+                <div class="flex justify-between text-xs md:text-sm text-gray-600">
+                    <p>命中红球：<span class="font-bold text-red-600">{{ result.matchedReds }}</span> 个</p>
+                    <p>命中蓝球：<span class="font-bold text-blue-600">{{ result.matchedBlues }}</span> 个</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中奖明细表格 -->
+        <div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+            <table class="w-full text-center border-collapse text-sm md:text-base whitespace-nowrap">
+                <thead>
+                    <tr class="bg-gray-100 text-gray-700">
+                        <th class="p-2 md:p-3 border-b font-medium">奖级</th>
+                        <th class="p-2 md:p-3 border-b font-medium">单注奖金</th>
+                        <th class="p-2 md:p-3 border-b font-medium">中奖注数</th>
+                        <th class="p-2 md:p-3 border-b font-medium">小计金额</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="tier in 6" :key="tier" :class="result.prizeDetails[tier].count > 0 ? 'bg-yellow-50 font-bold' : 'text-gray-400'">
+                        <td class="p-2 md:p-3 border-b">{{ ['一','二','三','四','五','六'][tier-1] }}等奖</td>
+                        <td class="p-2 md:p-3 border-b">￥{{ formatMoney(result.draw.prizes[tier]) }}</td>
+                        <td class="p-2 md:p-3 border-b text-blue-600">{{ formatMoney(result.prizeDetails[tier].count) }} 注</td>
+                        <td class="p-2 md:p-3 border-b text-red-600">￥{{ formatMoney(result.prizeDetails[tier].total) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 最终盈亏计算 -->
+        <div class="mt-6 text-center text-white p-4 md:p-6 rounded-xl shadow-inner" :class="result.totalMoney > 0 ? gradientClass : 'bg-gray-400'">
+            <p class="text-sm md:text-lg opacity-90">总计中奖金额</p>
+            <p class="text-3xl md:text-5xl font-black mt-1 md:mt-2 tracking-wider">￥ {{ formatMoney(result.totalMoney) }}</p>
+            <div class="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/30 text-xs md:text-sm flex flex-wrap justify-center gap-3 md:gap-6">
+                <p>投入: ￥{{ formatMoney(totalBets * 2) }}</p>
+                <p v-if="result.totalMoney > totalBets * 2" class="font-bold text-yellow-200">盈利: ￥{{ formatMoney(result.totalMoney - totalBets * 2) }} 📈</p>
+                <p v-else-if="result.totalMoney > 0" class="font-bold text-pink-200">亏损: ￥{{ formatMoney(totalBets * 2 - result.totalMoney) }} 📉</p>
+                <p v-else class="font-bold text-gray-200">血本无归 📉</p>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- 主程序区 -->
+<div id="app" class="max-w-4xl mx-auto space-y-4 md:space-y-6 pb-10">
+    
+    <!-- 数据源管理区 -->
+    <div class="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-t-4 border-indigo-500">
+        <h2 class="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex flex-wrap items-center gap-2">
+            <span>📦 开奖数据源</span>
+            <span v-if="db.length > 0" class="ml-auto text-xs md:text-sm bg-green-100 text-green-700 px-2 py-1 md:px-3 md:py-1 rounded-full">已加载 {{ db.length }} 期</span>
+            <span v-else class="ml-auto text-xs md:text-sm bg-red-100 text-red-700 px-2 py-1 md:px-3 md:py-1 rounded-full">暂无有效数据</span>
+        </h2>
+        
+        <p class="text-xs md:text-sm text-gray-500 mb-3 md:mb-4 leading-relaxed">
+            如需最新数据，请点击 <a href="https://data.17500.cn/ssq_asc.txt" target="_blank" class="text-blue-500 underline font-bold">官方数据</a>，全选复制并粘贴在下方，或导入txt文件。
+        </p>
+
+        <div class="flex flex-col md:flex-row gap-3">
+            <textarea v-model="rawData" @input="parseTxtData" rows="3" class="w-full p-3 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-xs text-gray-600 bg-gray-50 font-mono resize-none" placeholder="请将数据粘贴到这里..."></textarea>
+            
+            <div class="flex flex-row md:flex-col gap-2 shrink-0">
+                <label class="flex-1 cursor-pointer bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 font-bold py-2 px-3 md:px-4 rounded-lg text-center text-sm md:text-base flex items-center justify-center transition active:scale-95">
+                    📁 导入文件
+                    <input type="file" accept=".txt" @change="handleFileUpload">
+                </label>
+                <button @click="loadDemoData" class="flex-1 bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 font-bold py-2 px-3 md:px-4 rounded-lg text-sm md:text-base transition active:scale-95">
+                    🔄 演示数据
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 核心输入与计算区 -->
+    <div class="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6">
+        <h1 class="text-2xl md:text-3xl font-extrabold text-center text-red-600 mb-4 md:mb-6 border-b pb-3 md:pb-4">复式中奖计算器</h1>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">红球号码 (至少6个，1-33):</label>
+                <textarea v-model="inputReds" rows="2" class="w-full p-3 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-base md:text-lg font-bold tracking-wider text-red-600 resize-none" placeholder="例如: 01 05 12 16 22 28 30 31"></textarea>
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-red-500" v-if="parsedReds.length > 0 && parsedReds.length < 6">⚠️ 红球数量不足6个</span>
+                    <span class="text-xs text-gray-500" v-else>已选 {{ parsedReds.length }} 个红球</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">蓝球号码 (至少1个，1-16):</label>
+                <input v-model="inputBlues" type="text" class="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base md:text-lg font-bold tracking-wider text-blue-600" placeholder="例如: 03 12">
+                <div class="flex justify-between mt-1">
+                    <span class="text-xs text-red-500" v-if="parsedBlues.length === 0 && inputBlues">⚠️ 至少需要1个蓝球</span>
+                    <span class="text-xs text-gray-500" v-else>已选 {{ parsedBlues.length }} 个蓝球</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">指定期号 (留空算最新一期):</label>
+                <input v-model="targetIssue" type="number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 outline-none text-base" placeholder="例如: 2026021">
+            </div>
+
+            <button @click="calculatePrize" :disabled="!canCalculate" class="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-bold py-3 md:py-4 rounded-xl shadow-lg transition duration-200 text-base md:text-lg flex justify-center items-center active:scale-95">
+                <span v-if="!canCalculate">请完善号码及数据源</span>
+                <span v-else>立即计算中奖结果 🚀</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 结果展示区 -->
+    <div id="result-area" class="space-y-4 md:space-y-6 scroll-mt-4">
+        
+        <!-- 指定期 / 最新期 结果 -->
+        <result-card 
+            v-if="currentResult"
+            title="🎉 本期查询结果 🎉"
+            theme-class="border-yellow-400"
+            gradient-class="bg-gradient-to-r from-red-500 to-red-600"
+            :result="currentResult" 
+            :parsed-reds="parsedReds" 
+            :parsed-blues="parsedBlues" 
+            :total-bets="totalBets">
+        </result-card>
+
+        <!-- 历史最高纪录结果 (如果历史最高刚好等于当前期，则不重复显示) -->
+        <result-card 
+            v-if="historyMaxResult && (!currentResult || historyMaxResult.draw.issue !== currentResult.draw.issue)"
+            title="👑 历史数据中最高奖金期号 👑"
+            theme-class="border-purple-500"
+            gradient-class="bg-gradient-to-r from-purple-500 to-indigo-600"
+            :result="historyMaxResult" 
+            :parsed-reds="parsedReds" 
+            :parsed-blues="parsedBlues" 
+            :total-bets="totalBets">
+        </result-card>
+
+    </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+// 组合数学公式
+function C(n, m) {
+    if (m < 0 || m > n) return 0;
+    if (m === 0 || m === n) return 1;
+    let res = 1;
+    for (let i = 1; i <= m; i++) {
+        res = res * (n - i + 1) / i;
+    }
+    return res;
+}
+
+// 提取的Vue组件：结果卡片
+const ResultCard = {
+    template: '#result-template',
+    props: ['result', 'parsedReds', 'parsedBlues', 'totalBets', 'title', 'themeClass', 'gradientClass'],
+    methods: {
+        formatMoney(num) {
+            return num.toLocaleString('zh-CN');
+        }
+    }
+};
+
+const DEMO_DATA = `2026020 2026-02-24 01 13 14 21 24 30 02 13 24 01 30 21 14 381989060 2712273374 2 10000000 64 994080 974 3000 50504 200 1022416 10 9284458 5 7595784 5\n2026021 2026-02-26 03 13 25 26 30 31 04 30 26 13 31 25 03 351619166 2682273374 6 7076614 113 441050 1114 3000 60760 200 1146956 10 8538823 5 8067454 5\n2026019 2026-02-22 01 05 12 16 22 30 12 351619166 2682273374 2 5000000 113 441050 1114 3000 60760 200 1146956 10 8538823 5 8067454 5`; // 添加了一条模拟中奖的假数据用于测试
+
+createApp({
+    components: {
+        'result-card': ResultCard
+    },
+    data() {
+        return {
+            rawData: DEMO_DATA,
+            db: [],
+            inputReds: '01 05 12 16 22 28 30 31', 
+            inputBlues: '03 04 12',
+            targetIssue: '',
+            currentResult: null,   // 指定期/最新期的结果
+            historyMaxResult: null // 历史最高结果
+        }
+    },
+    computed: {
+        parsedReds() {
+            return [...new Set(this.inputReds.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= 33))].sort((a, b) => a - b);
+        },
+        parsedBlues() {
+            return [...new Set(this.inputBlues.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= 16))].sort((a, b) => a - b);
+        },
+        canCalculate() {
+            return this.parsedReds.length >= 6 && this.parsedBlues.length >= 1 && this.db.length > 0;
+        },
+        totalBets() {
+            return C(this.parsedReds.length, 6) * C(this.parsedBlues.length, 1);
+        }
+    },
+    mounted() {
+        this.parseTxtData();
+    },
+    methods: {
+        loadDemoData() {
+            this.rawData = DEMO_DATA;
+            this.parseTxtData();
+            this.currentResult = null;
+            this.historyMaxResult = null;
+        },
+        handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.rawData = e.target.result;
+                this.parseTxtData();
+            };
+            reader.readAsText(file);
+        },
+        parseTxtData() {
+            if(!this.rawData) {
+                this.db = [];
+                return;
+            }
+            const lines = this.rawData.trim().split('\n').reverse(); // 最新期在前
+            this.db = lines.map(line => {
+                const cols = line.trim().split(/\s+/);
+                if(cols.length < 29) return null;
+                return {
+                    issue: cols[0],
+                    date: cols[1],
+                    reds: cols.slice(2, 8).map(Number),
+                    blue: Number(cols[8]),
+                    prizes: {
+                        1: Number(cols[18]), 
+                        2: Number(cols[20]), 
+                        3: Number(cols[22]), 
+                        4: Number(cols[24]), 
+                        5: Number(cols[26]), 
+                        6: Number(cols[28])  
+                    }
+                };
+            }).filter(item => item !== null);
+        },
+        
+        // 核心抽离：计算任意一期的中奖情况
+        calculateSingleDraw(draw) {
+            const R = this.parsedReds.length;
+            const B = this.parsedBlues.length;
+            
+            const m = this.parsedReds.filter(x => draw.reds.includes(x)).length;
+            const n = this.parsedBlues.includes(draw.blue) ? 1 : 0;
+
+            const calcTickets = (reqR, reqB) => {
+                return C(m, reqR) * C(R - m, 6 - reqR) * C(n, reqB) * C(B - n, 1 - reqB);
+            };
+
+            const details = {
+                1: { count: calcTickets(6, 1) },
+                2: { count: calcTickets(6, 0) },
+                3: { count: calcTickets(5, 1) },
+                4: { count: calcTickets(5, 0) + calcTickets(4, 1) },
+                5: { count: calcTickets(4, 0) + calcTickets(3, 1) },
+                6: { count: calcTickets(2, 1) + calcTickets(1, 1) + calcTickets(0, 1) }
+            };
+
+            let totalMoney = 0;
+            for (let i = 1; i <= 6; i++) {
+                details[i].total = details[i].count * draw.prizes[i];
+                totalMoney += details[i].total;
+            }
+
+            return { draw, matchedReds: m, matchedBlues: n, prizeDetails: details, totalMoney };
+        },
+
+        calculatePrize() {
+            // 1. 计算指定期 / 最新期
+            let targetDraw = this.targetIssue.trim() 
+                ? this.db.find(d => d.issue === this.targetIssue.trim())
+                : this.db[0];
+
+            if (!targetDraw) {
+                alert(`未找到期号为 ${this.targetIssue} 的开奖记录！`);
+                return;
+            }
+            this.currentResult = this.calculateSingleDraw(targetDraw);
+
+            // 2. 瞬间遍历整个 db，寻找历史最高奖金
+            let maxMoney = -1;
+            let bestResult = null;
+            
+            for (const draw of this.db) {
+                const res = this.calculateSingleDraw(draw);
+                if (res.totalMoney > maxMoney) {
+                    maxMoney = res.totalMoney;
+                    bestResult = res;
+                }
+            }
+            
+            // 只有历史纪录奖金大于 0，才展示历史最高卡片 (避免全没中奖显示两个血本无归)
+            if (maxMoney > 0) {
+                this.historyMaxResult = bestResult;
+            } else {
+                this.historyMaxResult = null; // 所有历史期都没中奖
+            }
+
+            // 移动端体验优化：平滑滚动到结果区域
+            this.$nextTick(() => {
+                document.getElementById('result-area').scrollIntoView({ behavior: 'smooth' });
+            });
+        }
+    }
+}).mount('#app')
+</script>
+</body>
+</html>
