@@ -3,28 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>双色球复式中奖极速查询</title>
+    <title>全能复式极速查询系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     
-    <!-- 🌟 这里引入你转换好的外部 JS 数据文件 🌟 -->
+    <!-- 同时引入两个自动化生成的数据源 -->
     <script src="./ssq_data.js"></script> 
-    <!-- 线上部署时换成类似: <script src="https://你的服务器.com/ssq_data.js"></script> -->
+    <script src="./dlt_data.js"></script> 
 
     <style>
         .ball {
             display: inline-flex; justify-content: center; align-items: center;
             border-radius: 50%; color: white; font-weight: bold;
         }
-        .red-ball { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b); box-shadow: 0 2px 4px rgba(192,57,43,0.4); }
-        .blue-ball { background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe); box-shadow: 0 2px 4px rgba(0,242,254,0.4); }
-        input[type="file"] { display: none; }
+        /* 双色球颜色 */
+        .ssq-red { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b); box-shadow: 0 2px 4px rgba(192,57,43,0.4); }
+        .ssq-blue { background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe); box-shadow: 0 2px 4px rgba(0,242,254,0.4); }
+        /* 大乐透颜色 (前区红，后区黄/蓝调) */
+        .dlt-red { background: radial-gradient(circle at 30% 30%, #ff7675, #d63031); box-shadow: 0 2px 4px rgba(214,48,49,0.4); }
+        .dlt-blue { background: radial-gradient(circle at 30% 30%, #fdcb6e, #e17055); box-shadow: 0 2px 4px rgba(225,112,85,0.4); color: #2d3436; }
         * { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 md:p-8 text-gray-800">
 
-<!-- 模板：中奖结果卡片 -->
 <template id="result-template">
     <div :class="['bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-t-4', themeClass]">
         <h2 class="text-xl md:text-2xl font-bold text-center mb-4 md:mb-6 text-gray-800">{{ title }}</h2>
@@ -32,8 +34,8 @@
             <div class="bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-200">
                 <h3 class="text-sm md:text-base font-bold text-gray-600 mb-2 md:mb-3">您的投注方案</h3>
                 <div class="flex flex-wrap gap-1.5 md:gap-2 mb-3">
-                    <span v-for="r in parsedReds" class="ball red-ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm">{{ r < 10 ? '0'+r : r }}</span>
-                    <span v-for="b in parsedBlues" class="ball blue-ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm">{{ b < 10 ? '0'+b : b }}</span>
+                    <span v-for="r in parsedReds" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', isDLT ? 'dlt-red' : 'ssq-red']">{{ r < 10 ? '0'+r : r }}</span>
+                    <span v-for="b in parsedBlues" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', isDLT ? 'dlt-blue' : 'ssq-blue']">{{ b < 10 ? '0'+b : b }}</span>
                 </div>
                 <div class="flex justify-between text-xs md:text-sm text-gray-600">
                     <p>总注数：<span class="font-bold text-black">{{ formatMoney(totalBets) }}</span> 注</p>
@@ -46,15 +48,16 @@
                     <span class="text-xs font-normal text-gray-400 block sm:inline">({{ result.draw.date }})</span>
                 </h3>
                 <div class="flex flex-wrap gap-1.5 md:gap-2 mb-3">
-                    <span v-for="r in result.draw.reds" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedReds.includes(r) ? 'red-ball' : 'bg-gray-300']">{{ r < 10 ? '0'+r : r }}</span>
-                    <span :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedBlues.includes(result.draw.blue) ? 'blue-ball' : 'bg-gray-300']">{{ result.draw.blue < 10 ? '0'+result.draw.blue : result.draw.blue }}</span>
+                    <span v-for="r in result.draw.reds" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedReds.includes(r) ? (isDLT ? 'dlt-red' : 'ssq-red') : 'bg-gray-300']">{{ r < 10 ? '0'+r : r }}</span>
+                    <span v-for="b in result.draw.blues" :class="['ball w-7 h-7 md:w-9 md:h-9 text-xs md:text-sm', parsedBlues.includes(b) ? (isDLT ? 'dlt-blue' : 'ssq-blue') : 'bg-gray-300']">{{ b < 10 ? '0'+b : b }}</span>
                 </div>
                 <div class="flex justify-between text-xs md:text-sm text-gray-600">
-                    <p>命中红球：<span class="font-bold text-red-600">{{ result.matchedReds }}</span> 个</p>
-                    <p>命中蓝球：<span class="font-bold text-blue-600">{{ result.matchedBlues }}</span> 个</p>
+                    <p>命中前区/红：<span class="font-bold text-red-600">{{ result.matchedReds }}</span> 个</p>
+                    <p>命中后区/蓝：<span class="font-bold text-blue-600">{{ result.matchedBlues }}</span> 个</p>
                 </div>
             </div>
         </div>
+        
         <div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
             <table class="w-full text-center border-collapse text-sm md:text-base whitespace-nowrap">
                 <thead>
@@ -66,11 +69,11 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="tier in 6" :key="tier" :class="result.prizeDetails[tier].count > 0 ? 'bg-yellow-50 font-bold' : 'text-gray-400'">
-                        <td class="p-2 md:p-3 border-b">{{ ['一','二','三','四','五','六'][tier-1] }}等奖</td>
-                        <td class="p-2 md:p-3 border-b">￥{{ formatMoney(result.draw.prizes[tier]) }}</td>
-                        <td class="p-2 md:p-3 border-b text-blue-600">{{ formatMoney(result.prizeDetails[tier].count) }} 注</td>
-                        <td class="p-2 md:p-3 border-b text-red-600">￥{{ formatMoney(result.prizeDetails[tier].total) }}</td>
+                    <tr v-for="(detail, index) in result.prizeDetails" :key="index" :class="detail.count > 0 ? 'bg-yellow-50 font-bold' : 'text-gray-400'">
+                        <td class="p-2 md:p-3 border-b">{{ detail.name }}</td>
+                        <td class="p-2 md:p-3 border-b">￥{{ formatMoney(detail.money) }}</td>
+                        <td class="p-2 md:p-3 border-b text-blue-600">{{ formatMoney(detail.count) }} 注</td>
+                        <td class="p-2 md:p-3 border-b text-red-600">￥{{ formatMoney(detail.total) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -90,43 +93,49 @@
 
 <div id="app" class="max-w-4xl mx-auto space-y-4 md:space-y-6 pb-10">
     
-    <!-- 优化后的数据源管理区：自动读取在线 JS -->
-    <div class="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6 border-t-4 border-green-500 flex justify-between items-center">
+    <!-- 顶部彩种切换标签 -->
+    <div class="flex gap-2 md:gap-4 justify-center mt-2">
+        <button @click="switchGame('ssq')" :class="['flex-1 py-3 md:py-4 rounded-xl font-black text-lg md:text-xl shadow-md transition transform active:scale-95', game === 'ssq' ? 'bg-red-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50']">
+            🔴 双色球
+        </button>
+        <button @click="switchGame('dlt')" :class="['flex-1 py-3 md:py-4 rounded-xl font-black text-lg md:text-xl shadow-md transition transform active:scale-95', game === 'dlt' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50']">
+            🟡 大乐透
+        </button>
+    </div>
+
+    <!-- 数据源状态区 -->
+    <div class="bg-white rounded-xl shadow-md p-4 border-t-4 border-green-500 flex justify-between items-center">
         <div>
-            <h2 class="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
-                <span>📡 云端开奖数据源</span>
-                <span v-if="db.length > 0" class="text-xs md:text-sm bg-green-100 text-green-700 px-2 py-1 md:px-3 rounded-full">已自动加载 {{ db.length }} 期</span>
-                <span v-else class="text-xs md:text-sm bg-red-100 text-red-700 px-2 py-1 md:px-3 rounded-full">拉取失败或无数据</span>
+            <h2 class="text-sm md:text-lg font-bold text-gray-800 flex items-center gap-2">
+                <span>📡 云端数据 ({{ game === 'ssq' ? '双色球' : '大乐透' }})</span>
+                <span v-if="currentDb.length > 0" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">已加载 {{ currentDb.length }} 期</span>
             </h2>
-            <p class="text-xs text-gray-400 mt-1" v-if="db.length > 0">最新期号: {{ db[0].issue }} ({{ db[0].date }})</p>
+            <p class="text-xs text-gray-400 mt-1" v-if="currentDb.length > 0">最新期号: {{ currentDb[0].issue }} ({{ currentDb[0].date }})</p>
         </div>
-        
-        <label class="cursor-pointer bg-green-50 text-green-600 border border-green-200 hover:bg-green-100 font-bold py-2 px-3 rounded-lg text-sm transition active:scale-95">
-            手动更新 TXT
-            <input type="file" accept=".txt" @change="handleFileUpload">
-        </label>
     </div>
 
     <!-- 核心输入与计算区 -->
     <div class="bg-white rounded-xl md:rounded-2xl shadow-md p-4 md:p-6">
-        <h1 class="text-2xl md:text-3xl font-extrabold text-center text-red-600 mb-4 md:mb-6 border-b pb-3 md:pb-4">复式极速计算器</h1>
-
         <div class="space-y-4">
             <div>
-                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">红球号码 (至少6个):</label>
-                <textarea v-model="inputReds" rows="2" class="w-full p-3 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none text-base md:text-lg font-bold tracking-wider text-red-600 resize-none" placeholder="例如: 01 05 12 16 22 28 30 31"></textarea>
-                <div class="flex justify-between mt-1">
-                    <span class="text-xs text-red-500" v-if="parsedReds.length > 0 && parsedReds.length < 6">⚠️ 至少选6个红球</span>
-                    <span class="text-xs text-gray-500" v-else>已选 {{ parsedReds.length }} 个红球</span>
+                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">
+                    {{ game === 'ssq' ? '红球 (至少6个, 1-33)' : '前区 (至少5个, 1-35)' }}:
+                </label>
+                <textarea v-model="inputReds" rows="2" class="w-full p-3 border rounded-lg focus:ring-2 outline-none text-base md:text-lg font-bold tracking-wider resize-none" :class="game === 'ssq' ? 'border-red-300 focus:ring-red-500 text-red-600' : 'border-red-300 focus:ring-red-500 text-red-500'" placeholder="空格隔开，如: 01 05 12 16 22 28..."></textarea>
+                <div class="flex justify-between mt-1 text-xs">
+                    <span class="text-red-500" v-if="parsedReds.length > 0 && parsedReds.length < rules.minR">⚠️ 至少需要 {{ rules.minR }} 个</span>
+                    <span class="text-gray-500" v-else>已选 {{ parsedReds.length }} 个</span>
                 </div>
             </div>
 
             <div>
-                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">蓝球号码 (至少1个):</label>
-                <input v-model="inputBlues" type="text" class="w-full p-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-base md:text-lg font-bold tracking-wider text-blue-600" placeholder="例如: 03 12">
-                <div class="flex justify-between mt-1">
-                    <span class="text-xs text-red-500" v-if="parsedBlues.length === 0 && inputBlues">⚠️ 至少需要1个蓝球</span>
-                    <span class="text-xs text-gray-500" v-else>已选 {{ parsedBlues.length }} 个蓝球</span>
+                <label class="block text-gray-700 font-bold mb-1 md:mb-2 text-sm md:text-base">
+                    {{ game === 'ssq' ? '蓝球 (至少1个, 1-16)' : '后区 (至少2个, 1-12)' }}:
+                </label>
+                <input v-model="inputBlues" type="text" class="w-full p-3 border rounded-lg focus:ring-2 outline-none text-base md:text-lg font-bold tracking-wider" :class="game === 'ssq' ? 'border-blue-300 focus:ring-blue-500 text-blue-600' : 'border-yellow-400 focus:ring-yellow-500 text-yellow-600'" placeholder="例如: 03 12">
+                <div class="flex justify-between mt-1 text-xs">
+                    <span class="text-red-500" v-if="parsedBlues.length > 0 && parsedBlues.length < rules.minB">⚠️ 至少需要 {{ rules.minB }} 个</span>
+                    <span class="text-gray-500" v-else>已选 {{ parsedBlues.length }} 个</span>
                 </div>
             </div>
 
@@ -135,7 +144,7 @@
                 <input v-model="targetIssue" type="number" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 outline-none text-base" placeholder="例如: 2026021">
             </div>
 
-            <button @click="calculatePrize" :disabled="!canCalculate" class="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-bold py-3 md:py-4 rounded-xl shadow-lg transition duration-200 text-base md:text-lg flex justify-center items-center active:scale-95">
+            <button @click="calculatePrize" :disabled="!canCalculate" :class="['w-full text-white font-bold py-3 md:py-4 rounded-xl shadow-lg transition duration-200 text-base md:text-lg active:scale-95 disabled:bg-gray-400', game === 'ssq' ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600']">
                 <span v-if="!canCalculate">请完善号码及数据源</span>
                 <span v-else>立即计算中奖结果 🚀</span>
             </button>
@@ -148,11 +157,9 @@
             v-if="currentResult"
             title="🎉 本期查询结果 🎉"
             theme-class="border-yellow-400"
-            gradient-class="bg-gradient-to-r from-red-500 to-red-600"
-            :result="currentResult" 
-            :parsed-reds="parsedReds" 
-            :parsed-blues="parsedBlues" 
-            :total-bets="totalBets">
+            :gradient-class="game === 'ssq' ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-orange-400 to-orange-500'"
+            :is-d-l-t="game === 'dlt'"
+            :result="currentResult" :parsed-reds="parsedReds" :parsed-blues="parsedBlues" :total-bets="totalBets">
         </result-card>
 
         <result-card 
@@ -160,10 +167,8 @@
             title="👑 历史数据中最高奖金期号 👑"
             theme-class="border-purple-500"
             gradient-class="bg-gradient-to-r from-purple-500 to-indigo-600"
-            :result="historyMaxResult" 
-            :parsed-reds="parsedReds" 
-            :parsed-blues="parsedBlues" 
-            :total-bets="totalBets">
+            :is-d-l-t="game === 'dlt'"
+            :result="historyMaxResult" :parsed-reds="parsedReds" :parsed-blues="parsedBlues" :total-bets="totalBets">
         </result-card>
     </div>
 </div>
@@ -175,34 +180,23 @@ function C(n, m) {
     if (m < 0 || m > n) return 0;
     if (m === 0 || m === n) return 1;
     let res = 1;
-    for (let i = 1; i <= m; i++) {
-        res = res * (n - i + 1) / i;
-    }
+    for (let i = 1; i <= m; i++) { res = res * (n - i + 1) / i; }
     return res;
 }
 
 const ResultCard = {
     template: '#result-template',
-    props: ['result', 'parsedReds', 'parsedBlues', 'totalBets', 'title', 'themeClass', 'gradientClass'],
-    methods: {
-        formatMoney(num) {
-            return num.toLocaleString('zh-CN');
-        }
-    }
+    props: ['result', 'parsedReds', 'parsedBlues', 'totalBets', 'title', 'themeClass', 'gradientClass', 'isDLT'],
+    methods: { formatMoney(num) { return num.toLocaleString('zh-CN'); } }
 };
 
-// 备用兜底数据，万一外部 JS 没加载成功，不至于白板
-const FALLBACK_DATA = `2026020 2026-02-24 01 13 14 21 24 30 02 13 24 01 30 21 14 381989060 2712273374 2 10000000 64 994080 974 3000 50504 200 1022416 10 9284458 5 7595784 5`;
-
 createApp({
-    components: {
-        'result-card': ResultCard
-    },
+    components: { 'result-card': ResultCard },
     data() {
         return {
-            // 🌟 核心修改：优先读取 window.SSQ_ONLINE_DATA，如果没有则读取兜底数据
-            rawData: typeof window.SSQ_ONLINE_DATA !== 'undefined' ? window.SSQ_ONLINE_DATA : FALLBACK_DATA,
-            db: [],
+            game: 'ssq', // 'ssq' | 'dlt'
+            ssqDb: [],
+            dltDb: [],
             inputReds: '01 05 12 16 22 28 30 31', 
             inputBlues: '03 04 12',
             targetIssue: '',
@@ -211,87 +205,99 @@ createApp({
         }
     },
     computed: {
-        parsedReds() { return [...new Set(this.inputReds.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= 33))].sort((a, b) => a - b); },
-        parsedBlues() { return [...new Set(this.inputBlues.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= 16))].sort((a, b) => a - b); },
-        canCalculate() { return this.parsedReds.length >= 6 && this.parsedBlues.length >= 1 && this.db.length > 0; },
-        totalBets() { return C(this.parsedReds.length, 6) * C(this.parsedBlues.length, 1); }
+        rules() {
+            return this.game === 'ssq' 
+                ? { maxR: 33, maxB: 16, minR: 6, minB: 1 } 
+                : { maxR: 35, maxB: 12, minR: 5, minB: 2 };
+        },
+        currentDb() { return this.game === 'ssq' ? this.ssqDb : this.dltDb; },
+        parsedReds() { return [...new Set(this.inputReds.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= this.rules.maxR))].sort((a, b) => a - b); },
+        parsedBlues() { return [...new Set(this.inputBlues.split(/[\s,，、]+/).map(Number).filter(n => n >= 1 && n <= this.rules.maxB))].sort((a, b) => a - b); },
+        canCalculate() { return this.parsedReds.length >= this.rules.minR && this.parsedBlues.length >= this.rules.minB && this.currentDb.length > 0; },
+        totalBets() { return C(this.parsedReds.length, this.rules.minR) * C(this.parsedBlues.length, this.rules.minB); }
     },
     mounted() {
-        this.parseTxtData();
+        this.parseAllData();
     },
     methods: {
-        handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                this.rawData = e.target.result;
-                this.parseTxtData();
-            };
-            reader.readAsText(file);
+        switchGame(type) {
+            this.game = type;
+            this.currentResult = null;
+            this.historyMaxResult = null;
+            this.targetIssue = '';
+            // 切换时给个默认示例号码
+            if(type === 'ssq') { this.inputReds = '01 05 12 16 22 28 30 31'; this.inputBlues = '03 04 12'; }
+            else { this.inputReds = '02 08 15 23 29 32 35'; this.inputBlues = '04 07 11'; }
         },
-        parseTxtData() {
-            if(!this.rawData) {
-                this.db = [];
-                return;
+        parseAllData() {
+            // 解析双色球
+            if (typeof window.SSQ_ONLINE_DATA !== 'undefined') {
+                this.ssqDb = window.SSQ_ONLINE_DATA.trim().split('\n').reverse().map(line => {
+                    const c = line.trim().split(/\s+/);
+                    if(c.length < 29) return null;
+                    return { issue: c[0], date: c[1], reds: c.slice(2, 8).map(Number), blues: [Number(c[8])],
+                        prizes: [Number(c[18]), Number(c[20]), Number(c[22]), Number(c[24]), Number(c[26]), Number(c[28])] };
+                }).filter(Boolean);
             }
-            const lines = this.rawData.trim().split('\n').reverse();
-            this.db = lines.map(line => {
-                const cols = line.trim().split(/\s+/);
-                if(cols.length < 29) return null;
-                return {
-                    issue: cols[0], date: cols[1],
-                    reds: cols.slice(2, 8).map(Number), blue: Number(cols[8]),
-                    prizes: {
-                        1: Number(cols[18]), 2: Number(cols[20]), 3: Number(cols[22]), 
-                        4: Number(cols[24]), 5: Number(cols[26]), 6: Number(cols[28])  
-                    }
-                };
-            }).filter(item => item !== null);
+            // 解析大乐透 (大乐透奖级多，简化映射前6级便于展示)
+            if (typeof window.DLT_ONLINE_DATA !== 'undefined') {
+                this.dltDb = window.DLT_ONLINE_DATA.trim().split('\n').reverse().map(line => {
+                    const c = line.trim().split(/\s+/);
+                    if(c.length < 25) return null;
+                    return { issue: c[0], date: c[1], reds: c.slice(2, 7).map(Number), blues: c.slice(7, 9).map(Number),
+                        // 大乐透取前6个主要奖金级别
+                        prizes: [Number(c[14]), Number(c[16]), Number(c[18]), Number(c[20]), Number(c[22]), Number(c[24])] };
+                }).filter(Boolean);
+            }
         },
         calculateSingleDraw(draw) {
-            const R = this.parsedReds.length;
-            const B = this.parsedBlues.length;
+            const R = this.parsedReds.length, B = this.parsedBlues.length;
             const m = this.parsedReds.filter(x => draw.reds.includes(x)).length;
-            const n = this.parsedBlues.includes(draw.blue) ? 1 : 0;
+            const n = this.parsedBlues.filter(x => draw.blues.includes(x)).length;
 
-            const calcTickets = (reqR, reqB) => C(m, reqR) * C(R - m, 6 - reqR) * C(n, reqB) * C(B - n, 1 - reqB);
-
-            const details = {
-                1: { count: calcTickets(6, 1) }, 2: { count: calcTickets(6, 0) },
-                3: { count: calcTickets(5, 1) }, 4: { count: calcTickets(5, 0) + calcTickets(4, 1) },
-                5: { count: calcTickets(4, 0) + calcTickets(3, 1) }, 6: { count: calcTickets(2, 1) + calcTickets(1, 1) + calcTickets(0, 1) }
-            };
+            const calc = (reqR, reqB) => C(m, reqR) * C(R - m, this.rules.minR - reqR) * C(n, reqB) * C(B - n, this.rules.minB - reqB);
+            
+            let details = [];
+            if (this.game === 'ssq') {
+                details = [
+                    { name: '一等奖', count: calc(6, 1), money: draw.prizes[0] },
+                    { name: '二等奖', count: calc(6, 0), money: draw.prizes[1] },
+                    { name: '三等奖', count: calc(5, 1), money: draw.prizes[2] },
+                    { name: '四等奖', count: calc(5, 0) + calc(4, 1), money: draw.prizes[3] },
+                    { name: '五等奖', count: calc(4, 0) + calc(3, 1), money: draw.prizes[4] },
+                    { name: '六等奖', count: calc(2, 1) + calc(1, 1) + calc(0, 1), money: draw.prizes[5] }
+                ];
+            } else {
+                // 大乐透奖级计算 (前6级)
+                details = [
+                    { name: '一等奖(5+2)', count: calc(5, 2), money: draw.prizes[0] },
+                    { name: '二等奖(5+1)', count: calc(5, 1), money: draw.prizes[1] },
+                    { name: '三等奖(5+0)', count: calc(5, 0), money: draw.prizes[2] },
+                    { name: '四等奖(4+2)', count: calc(4, 2), money: draw.prizes[3] },
+                    { name: '五等奖(4+1)', count: calc(4, 1), money: draw.prizes[4] },
+                    { name: '六等及以下', count: calc(3, 2) + calc(4, 0) + calc(3, 1) + calc(2, 2) + calc(3, 0) + calc(1, 2) + calc(2, 1) + calc(0, 2), money: draw.prizes[5] || 5 }
+                ];
+            }
 
             let totalMoney = 0;
-            for (let i = 1; i <= 6; i++) {
-                details[i].total = details[i].count * draw.prizes[i];
-                totalMoney += details[i].total;
-            }
+            details.forEach(d => { d.total = d.count * d.money; totalMoney += d.total; });
+
             return { draw, matchedReds: m, matchedBlues: n, prizeDetails: details, totalMoney };
         },
         calculatePrize() {
-            let targetDraw = this.targetIssue.trim() ? this.db.find(d => d.issue === this.targetIssue.trim()) : this.db[0];
-            if (!targetDraw) {
-                alert(`未找到期号为 ${this.targetIssue} 的记录！`);
-                return;
-            }
+            let targetDraw = this.targetIssue.trim() ? this.currentDb.find(d => d.issue === this.targetIssue.trim()) : this.currentDb[0];
+            if (!targetDraw) return alert(`未找到期号 ${this.targetIssue}`);
+            
             this.currentResult = this.calculateSingleDraw(targetDraw);
 
-            let maxMoney = -1;
-            let bestResult = null;
-            for (const draw of this.db) {
+            let maxMoney = -1, bestResult = null;
+            for (const draw of this.currentDb) {
                 const res = this.calculateSingleDraw(draw);
-                if (res.totalMoney > maxMoney) {
-                    maxMoney = res.totalMoney;
-                    bestResult = res;
-                }
+                if (res.totalMoney > maxMoney) { maxMoney = res.totalMoney; bestResult = res; }
             }
             this.historyMaxResult = maxMoney > 0 ? bestResult : null;
 
-            this.$nextTick(() => {
-                document.getElementById('result-area').scrollIntoView({ behavior: 'smooth' });
-            });
+            this.$nextTick(() => document.getElementById('result-area').scrollIntoView({ behavior: 'smooth' }));
         }
     }
 }).mount('#app')
