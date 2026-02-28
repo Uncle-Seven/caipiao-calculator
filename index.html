@@ -176,7 +176,6 @@
 <script>
 const { createApp } = Vue;
 
-// 组合数学公式 (计算C_n_m)
 function C(n, m) {
     if (m < 0 || m > n) return 0;
     if (m === 0 || m === n) return 1;
@@ -230,7 +229,7 @@ createApp({
             else { this.inputReds = '02 08 15 23 29 32 35'; this.inputBlues = '04 07 11'; }
         },
         parseAllData() {
-            // 解析双色球 (第18列起是奖金)
+            // 解析双色球 
             if (typeof window.SSQ_ONLINE_DATA !== 'undefined') {
                 this.ssqDb = window.SSQ_ONLINE_DATA.trim().split('\n').reverse().map(line => {
                     const c = line.trim().split(/\s+/);
@@ -240,23 +239,24 @@ createApp({
                 }).filter(Boolean);
             }
             
-            // 🌟 修复: 大乐透精准解析 (从第12列起是奖金，共9个奖级)
+            // 🌟 解析大乐透 (精准跳过出球顺序、销售额、奖池，直接定位到第19列的奖金)
             if (typeof window.DLT_ONLINE_DATA !== 'undefined') {
                 this.dltDb = window.DLT_ONLINE_DATA.trim().split('\n').reverse().map(line => {
                     const c = line.trim().split(/\s+/);
-                    if(c.length < 25) return null;
+                    if(c.length < 25) return null; // 基础长度校验
                     return { 
                         issue: c[0], date: c[1], reds: c.slice(2, 7).map(Number), blues: c.slice(7, 9).map(Number),
+                        // 索引跨度：19, 21, 23, 25, 27, 29, 31, 33, 35
                         prizes: [
-                            Number(c[12]) || 5000000, // 1等 (若无人中奖txt为0，兜底500万)
-                            Number(c[14]) || 100000,  // 2等 (兜底10万)
-                            Number(c[16]) || 10000,   // 3等 (官方固定1万)
-                            Number(c[18]) || 3000,    // 4等 (官方固定3千)
-                            Number(c[20]) || 300,     // 5等 (官方固定3百)
-                            Number(c[22]) || 200,     // 6等 (官方固定2百)
-                            Number(c[24]) || 100,     // 7等 (官方固定1百)
-                            Number(c[26]) || 15,      // 8等 (官方固定15)
-                            Number(c[28]) || 5        // 9等 (官方固定5元)
+                            Number(c[19]) || 5000000, // 一等 (无人中兜底500万)
+                            Number(c[21]) || 100000,  // 二等 (无人中兜底10万)
+                            Number(c[23]) || 10000,   // 三等 (固定1万)
+                            Number(c[25]) || 3000,    // 四等 (固定3千)
+                            Number(c[27]) || 300,     // 五等 (固定3百)
+                            Number(c[29]) || 200,     // 六等 (固定2百)
+                            Number(c[31]) || 100,     // 七等 (固定1百)
+                            Number(c[33]) || 15,      // 八等 (固定15元)
+                            Number(c[35]) || 5        // 九等 (固定5元)
                         ] 
                     };
                 }).filter(Boolean);
@@ -267,11 +267,9 @@ createApp({
             const m = this.parsedReds.filter(x => draw.reds.includes(x)).length;
             const n = this.parsedBlues.filter(x => draw.blues.includes(x)).length;
 
-            // 核心组合计算器
             const calc = (reqR, reqB) => C(m, reqR) * C(R - m, this.rules.minR - reqR) * C(n, reqB) * C(B - n, this.rules.minB - reqB);
             
             let details = [];
-            
             if (this.game === 'ssq') {
                 details = [
                     { name: '一等奖(6+1)', count: calc(6, 1), money: draw.prizes[0] },
@@ -282,7 +280,6 @@ createApp({
                     { name: '六等奖(2+1/1+1/0+1)', count: calc(2, 1) + calc(1, 1) + calc(0, 1), money: draw.prizes[5] }
                 ];
             } else {
-                // 🌟 修复: 大乐透新规 9 大奖级精准映射
                 details = [
                     { name: '一等奖(5+2)', count: calc(5, 2), money: draw.prizes[0] },
                     { name: '二等奖(5+1)', count: calc(5, 1), money: draw.prizes[1] },
@@ -321,4 +318,5 @@ createApp({
 </script>
 </body>
 </html>
+
 
