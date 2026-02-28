@@ -1,0 +1,32 @@
+name: 自动更新双色球数据
+
+on:
+  schedule:
+    # 每天北京时间晚上 22:30 执行 (UTC 时间 14:30)
+    # 双色球通常在二、四、日晚 21:15 开奖，22点左右官网必定更新了
+    - cron: '30 14 * * *'
+  # 允许我们随时在网页上手动点击运行
+  workflow_dispatch: 
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v3
+
+      - name: 配置 Python 环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: 运行爬虫脚本
+        run: python fetch_data.py
+
+      - name: 提交并推送到仓库
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          # 如果 ssq_data.js 有变动，就提交；没变动就不管
+          git add ssq_data.js
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto update ssq_data.js" && git push)
