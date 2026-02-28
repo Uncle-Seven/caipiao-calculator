@@ -1,25 +1,25 @@
 import urllib.request
-import os
 
-# 官方 txt 数据源地址
-url = "https://data.17500.cn/ssq_asc.txt"
-
-try:
-    # 伪装成浏览器去访问，防止被拦截
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    response = urllib.request.urlopen(req)
-    
-    # 读取返回的 txt 内容并解码
-    txt_data = response.read().decode('utf-8')
-    
-    # 🌟 核心：把 txt 包装成合法的 JS 代码
-    js_content = f"window.SSQ_ONLINE_DATA = `{txt_data}`;"
-    
-    # 写入到同目录下的 ssq_data.js 文件中
-    with open('ssq_data.js', 'w', encoding='utf-8') as f:
-        f.write(js_content)
+# 封装一个通用的抓取函数
+def fetch_and_save(url, js_var_name, file_name):
+    try:
+        # 伪装浏览器请求
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req)
+        txt_data = response.read().decode('utf-8')
         
-    print("✅ 数据抓取并转换成功！")
-    
-except Exception as e:
-    print(f"❌ 抓取失败: {e}")
+        # 包装成 JS 变量
+        js_content = f"window.{js_var_name} = `{txt_data}`;"
+        
+        with open(file_name, 'w', encoding='utf-8') as f:
+            f.write(js_content)
+            
+        print(f"✅ [{file_name}] 数据抓取并转换成功！")
+    except Exception as e:
+        print(f"❌ [{file_name}] 抓取失败: {e}")
+
+# 1. 抓取双色球数据
+fetch_and_save("https://data.17500.cn/ssq_asc.txt", "SSQ_ONLINE_DATA", "ssq_data.js")
+
+# 2. 抓取大乐透数据
+fetch_and_save("https://data.17500.cn/dlt_asc.txt", "DLT_ONLINE_DATA", "dlt_data.js")
